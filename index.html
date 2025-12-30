@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CS2 Jolly Strike</title>
+<style>
+    body { margin: 0; background: #0b1a2a; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    #main-wrapper { position: relative; width: 800px; height: 400px; border: 4px solid #3a4b5c; border-radius: 10px; overflow: hidden; background: #1b2838; }
+    #menu, #game-over, #victory-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 10; }
+    #menu { background: linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,.7)), url('jollyc_2.png') center/cover; }
+    #game-over { display: none; background: rgba(20, 10, 10, 0.85); z-index: 15; }
+    
+    #victory-screen { display: none; background: rgba(10, 30, 20, 0.95); z-index: 20; border: 2px solid #4caf50; box-shadow: 0 0 20px #4caf50; }
+    #final-skin-img { width: 150px; height: auto; margin: 10px 0; filter: drop-shadow(0 0 10px #eb4b4b); }
+
+    h1 { font-size: 42px; text-shadow: 0 0 10px #00f2ff; margin-bottom: 15px; }
+    #name-input { padding: 10px; font-size: 18px; border-radius: 5px; border: 2px solid #00f2ff; background: rgba(0,0,0,0.5); color: white; text-align: center; margin-bottom: 15px; outline: none; }
+    .btn { padding: 12px 35px; font-size: 18px; border: none; color: white; border-radius: 5px; cursor: pointer; transition: 0.3s; margin-top: 10px; font-weight: bold; }
+    .start-btn { background: #4caf50; }
+    .restart-btn { background: #d9534f; }
+    .btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+    canvas { background:#1b2838; }
+    .ui { position:absolute; top:20px; left:20px; font-size:22px; display:none; z-index:5; font-weight: bold; text-shadow: 2px 2px 2px black; }
+</style>
+</head>
+<body>
+<div id="main-wrapper">
+    <div class="ui" id="ui">Очки: <span id="score">0</span> / 3600</div>
+    <div id="menu">
+        <h1>CS2: Jolly Strike</h1>
+        <input type="text" id="name-input" placeholder="Введи имя..." maxlength="15">
+        <button class="btn start-btn" onclick="startGame()">пошарудить пальчиком в очке</button>
+    </div>
+    <div id="game-over">
+        <h2 style="font-size: 40px; color: #ff4c4c; text-shadow: 0 0 10px red;">донт би е лузер бай е дефузер</h2>
+        <button class="btn restart-btn" onclick="startGame()">купи дефы сука</button>
+    </div>
+
+    <div id="victory-screen">
+        <h2 style="color: #4caf50; font-size: 36px; text-shadow: 0 0 10px #4caf50;">С нг, <span id="player-win-name"></span>!</h2>
+        <p style="font-size: 18px; margin: 5px 0;">За то что ты был хорошим мальчиком ты получаешь:</p>
+        
+        <img id="final-skin-img" src="" alt="Скин"> <div id="final-skin-name" style="color: #eb4b4b; font-weight: bold; font-size: 28px; margin-bottom: 10px; text-shadow: 0 0 15px #eb4b4b;"></div>
+        
+        <button class="btn start-btn" onclick="location.reload()">чо зыришь нажимай</button>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+
+const imgPlayer = new Image(); imgPlayer.src = 'ct.png';
+const imgC4 = new Image(); imgC4.src = 'c4.png';
+const imgKit = new Image(); imgKit.src = 'kit.png';
+const imgSanta = new Image(); imgSanta.src = 'santa.png';
+const imgGift = new Image(); imgGift.src = 'gift.png';
+const imgSkin = new Image();
+
+const sndExplosion = new Audio('explosion.mp3');
+const bgMusic = new Audio('music.m4a');
+bgMusic.loop = true;
+
+let score = 0, frame = 0, gameActive = false, playerName = "спецназик";
+const gravity = 0.4;
+const player = { x:80, y:300, w:40, h:60, dy:0, grounded:false };
+let obstacles = [], items = [], santa = null, gift = null, finalPhase = false;
+let finalNote = false, giftOpening = false, skinOut = false, skinY = 0;
+
+let snowflakes = [];
+function createSnow() {
+    snowflakes = [];
+    for(let i = 0; i < 80; i++) {
+        snowflakes.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: Math.random() * 3 + 1, speed: Math.random() * 0.7 + 0.3, wind: Math.random() * 0.4 - 0.2 });
+    }
+}
+
+const giftsData = {
+    "Игорь": "MP9 | GOO",
+    "sk1dy": "MP9 | GOO",
+    "Даня": "Nova | Toy Soldier",
+    ":)": "Nova | Toy Soldier",
+    "Default": "конч блять иди нахуй дура"
+};
+
+const skinImagesData = {
+    "Игорь": "mp9_goo.png",
+    "sk1dy": "mp9_goo.png",
+    "Даня": "butterfly.png",
+    ":)": "butterfly.png",
+    "Default": "skin.png"
+};
+
+let currentGiftName = "";
+let currentSkinPath = "";
+
+function fadeOutMusic() {
+    let fade = setInterval(() => {
+        if (bgMusic.volume > 0.05) bgMusic.volume -= 0.05;
+        else { bgMusic.pause(); clearInterval(fade); }
+    }, 150);
+}
+
+function startGame(){
+    const input = document.getElementById('name-input');
+    playerName = input.value.trim() || "ник напиши даун";
+    currentGiftName = giftsData[playerName] || giftsData["Default"];
+    currentSkinPath = skinImagesData[playerName] || skinImagesData["Default"];
+    
+    imgSkin.src = currentSkinPath;
+
+    document.getElementById('menu').style.display='none'; 
+    document.getElementById('game-over').style.display='none';
+    document.getElementById('victory-screen').style.display='none';
+    document.getElementById('ui').style.display='block';
+    
+    score=0; frame=0; finalPhase=false; obstacles=[]; items=[];
+    santa=null; gift=null; finalNote=false; giftOpening = false; skinOut = false;
+    player.y=300; player.dy=0; gameActive=true; scoreEl.textContent=0;
+    
+    createSnow();
+    bgMusic.volume = 0.5; bgMusic.currentTime = 0; bgMusic.play().catch(()=>{});
+    update();
+}
+
+addEventListener('keydown', e => { if(e.code==='Space' && player.grounded && gameActive && !finalNote) { player.dy=-11; player.grounded=false; } });
+canvas.addEventListener('mousedown', () => { if (finalNote) { finalNote = false; giftOpening = true; setTimeout(() => { giftOpening = false; skinOut = true; skinY = gift.y; }, 1200); } });
+
+function update(){
+    if(!gameActive) return;
+    frame++;
+    if (!finalNote) {
+        player.dy += gravity; player.y += player.dy;
+        if(player.y + player.h > 370){ player.y = 370 - player.h; player.dy = 0; player.grounded = true; }
+    }
+    snowflakes.forEach(s => { s.y += s.speed; s.x += s.wind; if (s.y > canvas.height) { s.y = -10; s.x = Math.random() * canvas.width; } });
+    if(!finalPhase){
+        if(frame % 110 === 0) obstacles.push({x:800, y:330, w:50, h:40, speed:3.5});
+        if(frame % 160 === 0) items.push({x:800, y:220, w:40, h:40, speed:3});
+    }
+    obstacles.forEach((o, i) => { o.x -= o.speed; if(player.x < o.x + o.w && player.x + player.w > o.x && player.y < o.y + o.h && player.y + player.h > o.y) endGame(); if(o.x + o.w < 0) obstacles.splice(i, 1); });
+    items.forEach((it, i) => { it.x -= it.speed; if(player.x < it.x + it.w && player.x + player.w > it.x && player.y < it.y + it.h && player.y + player.h > it.y){ items.splice(i, 1); score += 100; scoreEl.textContent = score; if(score >= 3600 && !finalPhase) { finalPhase = true; obstacles = []; santa = { x: -3600, y: 60, speed: 2 }; } } });
+    if(santa){ santa.x += santa.speed; if(santa.x >= player.x && !gift) gift = { x: player.x, y: santa.y + 20, w: 40, h: 40, dy: 1.5, landed: false }; }
+    if(gift && !gift.landed){ gift.y += gift.dy; if(gift.y + gift.h >= player.y) { gift.y = player.y; gift.landed = true; finalNote = true; } }
+    draw();
+    requestAnimationFrame(update);
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' '); let line = '';
+    for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        if (ctx.measureText(testLine).width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; } 
+        else line = testLine;
+    }
+    ctx.fillText(line, x, y);
+}
+
+function safeDraw(img, x, y, w, h, color) { if (img.complete && img.width > 0) ctx.drawImage(img, x, y, w, h); else { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); } }
+
+function draw(){
+    ctx.clearRect(0, 0, 800, 400);
+    ctx.fillStyle = '#f0f0f0'; ctx.fillRect(0, 370, 800, 30); 
+    safeDraw(imgPlayer, player.x, player.y, player.w, player.h, '#2b475e');
+    obstacles.forEach(o => safeDraw(imgC4, o.x, o.y, o.w, o.h, 'red'));
+    items.forEach(i => safeDraw(imgKit, i.x, i.y, i.w, i.h, 'green'));
+    ctx.fillStyle = "white";
+    snowflakes.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); });
+    if(santa) safeDraw(imgSanta, santa.x, santa.y, 100, 50, 'red');
+    if(gift && !skinOut){
+        let shake = giftOpening ? Math.sin(frame * 0.5) * 5 : 0;
+        safeDraw(imgGift, gift.x + shake, gift.y - gift.h, gift.w, gift.h, 'gold');
+    }
+    if (finalNote) {
+        const rw = 550, rh = 240, rx = 400 - rw/2, ry = 200 - rh/2;
+        ctx.fillStyle = "rgba(10, 20, 30, 0.98)"; ctx.fillRect(rx, ry, rw, rh);
+        ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 3; ctx.strokeRect(rx, ry, rw, rh);
+        ctx.fillStyle = "#00f2ff"; ctx.textAlign = "center"; ctx.shadowBlur = 10; ctx.shadowColor = "#00f2ff"; ctx.font = "bold 28px 'Segoe UI', sans-serif"; ctx.fillText(`ПРИВЕТ, ${playerName.toUpperCase()}!`, 400, ry + 45);
+        ctx.shadowBlur = 0; ctx.fillStyle = "#ffffff"; ctx.font = "italic 18px 'Segoe UI', sans-serif";
+        wrapText(ctx, `Ты подобрал все дефы! За твою храбрость электроник подготовил для тебя кое-что особенное. Открывай скорее!`, 400, ry + 100, rw - 60, 26);
+        ctx.fillStyle = "#4caf50"; ctx.font = "bold 16px 'Segoe UI', sans-serif"; ctx.fillText("— кликни мышкой —", 400, ry + rh - 30); ctx.textAlign = "start";
+    }
+    if (skinOut) {
+        skinY -= 3;
+        safeDraw(imgSkin, player.x - 30, skinY, 110, 45, 'orange');
+        ctx.fillStyle = "#fff"; ctx.shadowBlur = 10; ctx.shadowColor = "#ff0000"; ctx.font = "bold 18px 'Verdana', sans-serif"; ctx.fillText(currentGiftName, player.x - 15, skinY - 15); ctx.shadowBlur = 0;
+        if(skinY < -50) { 
+            gameActive = false; fadeOutMusic();
+            
+            document.getElementById('player-win-name').textContent = playerName;
+            document.getElementById('final-skin-name').textContent = currentGiftName;
+            document.getElementById('final-skin-img').src = currentSkinPath;
+            
+            document.getElementById('victory-screen').style.display = 'flex';
+            document.getElementById('ui').style.display = 'none';
+        }
+    }
+}
+function endGame(){ if (finalPhase) return; gameActive = false; bgMusic.pause(); sndExplosion.play().catch(()=>{}); document.getElementById('game-over').style.display = 'flex'; document.getElementById('ui').style.display = 'none'; }
+</script>
+</body>
+</html>

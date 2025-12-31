@@ -25,7 +25,7 @@
 </head>
 <body>
 <div id="main-wrapper">
-    <div class="ui" id="ui">Очки: <span id="score">0</span> / 3600</div>
+    <div class="ui" id="ui">Очки: <span id="score">0</span> / 1000</div>
     <div id="menu">
         <h1>CS2: Jolly Strike</h1>
         <input type="text" id="name-input" placeholder="Введи имя..." maxlength="15">
@@ -142,7 +142,7 @@ function update(){
         if(frame % 160 === 0) items.push({x:800, y:220, w:40, h:40, speed:3});
     }
     obstacles.forEach((o, i) => { o.x -= o.speed; if(player.x < o.x + o.w && player.x + player.w > o.x && player.y < o.y + o.h && player.y + player.h > o.y) endGame(); if(o.x + o.w < 0) obstacles.splice(i, 1); });
-    items.forEach((it, i) => { it.x -= it.speed; if(player.x < it.x + it.w && player.x + player.w > it.x && player.y < it.y + it.h && player.y + player.h > it.y){ items.splice(i, 1); score += 100; scoreEl.textContent = score; if(score >= 3600 && !finalPhase) { finalPhase = true; obstacles = []; santa = { x: -3600, y: 60, speed: 2 }; } } });
+    items.forEach((it, i) => { it.x -= it.speed; if(player.x < it.x + it.w && player.x + player.w > it.x && player.y < it.y + it.h && player.y + player.h > it.y){ items.splice(i, 1); score += 100; scoreEl.textContent = score; if(score >= 1000 && !finalPhase) { finalPhase = true; obstacles = []; santa = { x: -3600, y: 60, speed: 2 }; } } });
     if(santa){ santa.x += santa.speed; if(santa.x >= player.x && !gift) gift = { x: player.x, y: santa.y + 20, w: 40, h: 40, dy: 1.5, landed: false }; }
     if(gift && !gift.landed){ gift.y += gift.dy; if(gift.y + gift.h >= player.y) { gift.y = player.y; gift.landed = true; finalNote = true; } }
     draw();
@@ -202,4 +202,5 @@ function draw(){
 function endGame(){ if (finalPhase) return; gameActive = false; bgMusic.pause(); sndExplosion.play().catch(()=>{}); document.getElementById('game-over').style.display = 'flex'; document.getElementById('ui').style.display = 'none'; }
 </script>
 </body>
+
 </html>
